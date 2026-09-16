@@ -2,7 +2,7 @@
     "name": "elephentity/codegen-wpgraphql",
     "description": "The WPGraphQL builder for Elephentity: compiles the IR into a GraphQL manifest and a conformance verifier. Build-time only.",
     "type": "library",
-    "license": "MIT",
+    "license": "Apache-2.0",
     "require": {
         "php": ">=8.3"
     },
