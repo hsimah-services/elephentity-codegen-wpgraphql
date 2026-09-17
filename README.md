@@ -2,6 +2,11 @@
 
 The WPGraphQL builder for [Elephentity](https://github.com/hsimah-services/elephentity).
 
+Implemented in Rust. Build a checkout with `cargo build --release --locked`, or install
+the executable on PATH with `cargo install --path . --locked`. The `bin/eleph-gen-wpgraphql`
+checkout launcher uses `target/release/eleph-gen-wpgraphql` (or a debug build during development).
+It never falls back to PHP. Installed Cargo binaries need neither PHP nor Cargo to run.
+
 It reads one JSON request on stdin — the compiled spec, plus the target's configuration
 — and writes one JSON response on stdout: a path and a body per file. It never touches
 the filesystem. Signing and writing happen in
@@ -17,10 +22,16 @@ That fails on the empty schema, which is the point: it should be obvious how.
 ## Installing it
 
 ```bash
+# From this repository:
+cargo install --path . --locked
+
+# Or, when using the Composer distribution:
 composer require --dev elephentity/codegen-wpgraphql
+cargo build --release --locked --manifest-path vendor/elephentity/codegen-wpgraphql/Cargo.toml
 ```
 
-Then name it in `eleph.json`:
+Use `"builder": "eleph-gen-wpgraphql"` for a Cargo installation, or the Composer
+launcher as shown below. Then name it in `eleph.json`:
 
 ```json
 {
@@ -49,24 +60,25 @@ project that never declares the integration gets no files, `graphql-manifest.php
 
 ## It depends on nothing of Elephentity's
 
-Not the compiler, not the runtime, not the orchestrator. The IR value objects in
-`src/Ir` are a copy; the GraphQL manifest shapes (`src/Manifest`) are a second,
-independent copy of the same shapes the runtime holds; and the runtime classes the
-exported manifest and verifier refer to are strings in `src/Runtime.php` rather than
-imports. That is deliberate: a builder that had to `composer require` the framework it
-generates for would be a builder no other language could write. The version gate is
-what holds the copies in step — a mismatch is a refusal, never a silent misread.
+The builder owns its typed wire IR in `rust/ir.rs` and emits runtime class names as
+strings. Protocol and IR versions are checked before reading the schema. Static
+capability declarations are embedded from `rust/provides.json`; their golden describe
+responses ensure the compiler sees the same integration, driver, and pattern contracts.
 
 ## Working on it
 
-There is no local PHP; everything runs in a container:
-
 ```bash
-./tools/php composer ci          # style, static analysis, tests
-./tools/php vendor/bin/phpunit --filter GoldenTest
+cargo fmt --check
+cargo clippy --all-targets -- -D warnings
+cargo test --locked
+./tools/php composer ci
 ```
 
-PHPStan runs at **level max** with no baseline exclusions.
+Rust sources live in `rust/`. Each builder owns its IR types and version gate; there
+is no runtime dependency on the compiler or another builder. PHP in `src/` and the
+`bin/eleph-gen-wpgraphql-reference` executable is retained as a migration oracle for the
+existing tests. Production entrypoints run Rust only. PHPStan still checks the reference
+and acceptance tests at level max.
 
 ## The golden fixtures
 
