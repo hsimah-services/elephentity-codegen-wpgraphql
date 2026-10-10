@@ -85,12 +85,19 @@ fn block(lines: &[String]) -> String {
         format!("[\n{}\n            ]", lines.join("\n"))
     }
 }
-fn enumeration(n: &str, values: &Value) -> String {
+fn enumeration(n: &str, values: &Value) -> Result<String> {
     let mut members = serde_json::Map::new();
     for v in list(values) {
-        members.insert(s(v).to_ascii_uppercase(), v.clone());
+        let member = s(v).to_ascii_uppercase();
+        if let Some(previous) = members.insert(member.clone(), v.clone()) {
+            return Err(format!(
+                "GraphQL enum {n}: labels {:?} and {:?} both generate member {member:?}.",
+                s(&previous),
+                s(v)
+            ));
+        }
     }
-    format!(
+    Ok(format!(
         "        {} => new EnumTypeEntry({}, [{}]),",
         q(n),
         q(n),
@@ -99,7 +106,7 @@ fn enumeration(n: &str, values: &Value) -> String {
             .map(|(k, v)| format!("{} => {}", q(k), q(s(v))))
             .collect::<Vec<_>>()
             .join(", ")
-    )
+    ))
 }
 fn mutation(
     n: &str,
@@ -131,7 +138,7 @@ pub fn generate(schema: &Value) -> Result<String> {
     for t in vals(&schema["types"]) {
         if !t["values"].is_null() {
             let n = s(&t["name"]);
-            enums.insert(n.to_owned(), enumeration(n, &t["values"]));
+            enums.insert(n.to_owned(), enumeration(n, &t["values"])?);
         }
     }
     for e in &entities {
@@ -189,7 +196,7 @@ pub fn generate(schema: &Value) -> Result<String> {
                 },
             ));
             if f["type"]["primitive"] == "enum" && !f["enum"]["inlineValues"].is_null() {
-                enums.insert(ft.clone(), enumeration(&ft, &f["enum"]["inlineValues"]));
+                enums.insert(ft.clone(), enumeration(&ft, &f["enum"]["inlineValues"])?);
             }
         }
         for edge in vals(&e["edges"]) {
